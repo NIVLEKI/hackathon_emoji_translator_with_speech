@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Emoji Translator</title>
+  <style>
+    body {
+      font-family: 'Comic Sans MS', cursive, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+      padding: 20px;
+    }
+
+    :root {
+      --bg: #ffebee;
+      --text: #000;
+      --card: #fff;
+    }
+
+    .dark-mode {
+      --bg: #121212;
+      --text: #f0f0f0;
+      --card: #1e1e1e;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: var(--card);
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    h1 {
+      color: #e91e63;
+    }
+
+    #inputText {
+      width: 90%;
+      padding: 12px;
+      font-size: 16px;
+      margin: 15px 0;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px 5px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #output, #history {
+      font-size: 24px;
+      min-height: 50px;
+      margin: 20px 0;
+      padding: 15px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      background: #f9f9f9;
+      color: #000;
+    }
+
+    .dark-mode #output, .dark-mode #history {
+      background: #2c2c2c;
+      color: #fff;
+    }
+
+    .suggestions {
+      font-size: 14px;
+      margin-top: 5px;
+      color: #777;
+    }
+
+    .theme-toggle {
+      float: right;
+      cursor: pointer;
+      margin-top: -30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="theme-toggle">
+      <button onclick="toggleTheme()">🌓 Theme</button>
+    </div>
+    <h1>🔄 Emoji Translator with Speech</h1>
+    <input type="text" id="inputText" placeholder="Type or speak..." oninput="livePreview()">
+    <div class="suggestions" id="suggestions"></div>
+    <button onclick="generateTranslation()">Translate</button>
+    <button onclick="startListening()">🎙️ Speak</button>
+    <button onclick="copyOutput()">📋 Copy</button>
+    <button onclick="generateRandomSuggestion()">🎲 Random</button>
+    <button onclick="toggleMode()">🔁 Mode: <span id="modeLabel">Text ➜ Emoji</span></button>
+    <div id="output">Output will appear here...</div>
+    <h3>History:</h3>
+    <div id="history"></div>
+  </div>
+
+  <script>
+    const emojiMap = {
+      "love": "❤️", "like": "👍", "happy": "😊", "cat": "🐱", "dog": "🐶",
+      "pizza": "🍕", "burger": "🍔", "music": "🎵", "sun": "☀️", "rain": "🌧️",
+      "coffee": "☕", "tea": "🍵", "book": "📖", "movie": "🎬", "car": "🚗",
+      "bike": "🚲", "plane": "✈️", "phone": "📱", "computer": "💻", "game": "🎮",
+      "ball": "⚽", "basketball": "🏀", "tennis": "🎾", "swim": "🏊", "run": "🏃",
+      "sleep": "😴", "eat": "🍽️", "drink": "🥤", "work": "💼", "school": "🏫",
+      "friend": "👫", "family": "👪", "baby": "👶", "child": "🧒", "adult": "🧑",
+      "old": "🧓", "king": "🤴", "queen": "👸", "hero": "🦸", "villain": "🦹",
+      "angel": "👼", "devil": "😈", "alien": "👽", "robot": "🤖", "dragon": "🐉",
+      "unicorn": "🦄", "money": "💰", "rich": "🤑", "poor": "😔", "smart": "🧠",
+      "stupid": "🤪", "funny": "🤣", "sad": "😢", "angry": "😠", "cool": "😎",
+      "hot": "🥵", "cold": "🥶", "sick": "🤒", "healthy": "💪", "strong": "💪",
+      "weak": "😫", "fast": "⚡", "slow": "🐌", "big": "🐘", "small": "🐭",
+      "high": "🦒", "low": "🐢", "new": "🆕", "good": "👍",
+      "bad": "👎", "yes": "✅", "no": "❌", "maybe": "🤷", "hello": "👋",
+      "goodbye": "👋", "morning": "🌅", "night": "🌃", "today": "📅", "tomorrow": "⏭️",
+      "yesterday": "⏮️", "now": "⏱️", "later": "⏳", "soon": "🔜", "never": "🚫"
+    };
+
+    const reverseEmojiMap = Object.fromEntries(
+      Object.entries(emojiMap).map(([k, v]) => [v, k])
+    );
+
+    let historyList = [];
+    let mode = "textToEmoji"; // or "emojiToText"
+
+    function convertTextToEmoji(text) {
+      let result = text;
+      for (const [word, emoji] of Object.entries(emojiMap)) {
+        const regex = new RegExp(`\\b${word}\\b`, 'gi');
+        result = result.replace(regex, emoji);
+      }
+      return result;
+    }
+
+    function convertEmojiToText(text) {
+      let result = text;
+      for (const [emoji, word] of Object.entries(reverseEmojiMap)) {
+        const regex = new RegExp(`${emoji}`, 'g');
+        result = result.replace(regex, word);
+      }
+      return result;
+    }
+
+    function generateTranslation() {
+      const input = document.getElementById("inputText").value;
+      const output = (mode === "textToEmoji") ? convertTextToEmoji(input) : convertEmojiToText(input);
+      document.getElementById("output").innerText = output || "Type something first!";
+      if (output) {
+        historyList.unshift(output);
+        updateHistory();
+      }
+    }
+
+    function livePreview() {
+      const input = document.getElementById("inputText").value;
+      const preview = (mode === "textToEmoji") ? convertTextToEmoji(input) : convertEmojiToText(input);
+      document.getElementById("output").innerText = preview;
+
+      if (mode === "textToEmoji") {
+        const words = input.toLowerCase().split(/\s+/);
+        const last = words[words.length - 1];
+        const suggestions = Object.keys(emojiMap)
+          .filter(key => key.startsWith(last))
+          .slice(0, 5)
+          .map(k => `${k} ${emojiMap[k]}`);
+        document.getElementById("suggestions").innerText = suggestions.length
+          ? "Suggestions: " + suggestions.join(", ")
+          : "";
+      } else {
+        document.getElementById("suggestions").innerText = "";
+      }
+    }
+
+    function toggleMode() {
+      mode = (mode === "textToEmoji") ? "emojiToText" : "textToEmoji";
+      document.getElementById("modeLabel").innerText = (mode === "textToEmoji") ? "Text ➜ Emoji" : "Emoji ➜ Text";
+      livePreview();
+    }
+
+    function updateHistory() {
+      document.getElementById("history").innerHTML = historyList.slice(0, 5).map(item => `<div>${item}</div>`).join("");
+    }
+
+    function copyOutput() {
+      const text = document.getElementById("output").innerText;
+      navigator.clipboard.writeText(text)
+        .then(() => alert("Copied to clipboard!"))
+        .catch(() => alert("Copy failed."));
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("dark-mode");
+    }
+
+    function generateRandomSuggestion() {
+      const keys = Object.keys(emojiMap);
+      const randomWords = Array.from({ length: 4 }, () => keys[Math.floor(Math.random() * keys.length)]);
+      const sentence = "I feel " + randomWords.join(" ");
+      document.getElementById("inputText").value = sentence;
+      livePreview();
+    }
+
+    function startListening() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Sorry, your browser doesn't support speech recognition.");
+        return;
+      }
+
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById("inputText").value = transcript;
+        livePreview();
+        generateTranslation();
+      };
+
+      recognition.onerror = function(event) {
+        alert("Speech recognition error: " + event.error);
+      };
+
+      recognition.start();
+    }
+  </script>
+</body>
+</html>
